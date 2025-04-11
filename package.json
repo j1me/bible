@@ -6,5 +6,8 @@
     "start": "npx http-server . -p 8080 -c-1"
   },
   "author": "",
-  "license": "MIT"
-} 
+  "license": "MIT",
+  "dependencies": {
+    "http-server": "^14.1.1"
+  }
+}

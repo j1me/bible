@@ -1,4 +1,5 @@
 import { bibleLoader } from './bookLoader.js';
+import { viewManager } from './viewManager.js';
 
 class SearchHandler {
     constructor() {
@@ -12,6 +13,19 @@ class SearchHandler {
         this.searchInput.addEventListener('input', (e) => {
             clearTimeout(debounceTimeout);
             debounceTimeout = setTimeout(() => this.handleSearch(e.target.value), 300);
+        });
+        
+        // Listen for render chapter events from the ViewManager
+        document.addEventListener('renderChapter', (e) => {
+            this.displayChapter(e.detail.chapter);
+        });
+        
+        // Listen for reset content events (for continuous scrolling mode)
+        document.addEventListener('resetVerseContent', (e) => {
+            if (e.detail && e.detail.chapter) {
+                // Force a complete reset and display of the chapter
+                this.forceDisplayChapter(e.detail.chapter);
+            }
         });
     }
 
@@ -51,19 +65,48 @@ class SearchHandler {
         const verses = bibleLoader.getChapterVerses(chapter);
         if (!verses) return;
 
-        const html = verses.map(verse => `
-            <div class="mb-4 p-4 bg-white rounded-lg shadow">
-                <span class="text-sm text-gray-600 mr-2">${verse.verse}</span>
-                <span class="text-lg">${verse.text}</span>
-            </div>
-        `).join('');
+        // Check if we need to append or replace content
+        if (viewManager.continuousScrolling && 
+            this.verseContent.querySelector('.chapter-container')) {
+            // In continuous scrolling mode with existing content,
+            // content will be appended by the viewManager
+            return;
+        }
 
-        this.verseContent.innerHTML = html;
+        // Use the ViewManager to render verses according to the selected view mode
+        const html = viewManager.renderVerses(verses);
+        
+        // Create a wrapper div with data attributes
+        const containerDiv = document.createElement('div');
+        containerDiv.className = 'chapter-container';
+        containerDiv.dataset.chapter = chapter;
+        containerDiv.dataset.book = bibleLoader.currentBook?.book || '';
+        containerDiv.innerHTML = html;
+        
+        // Replace the content
+        this.verseContent.innerHTML = '';
+        this.verseContent.appendChild(containerDiv);
+        
+        // Scroll to top to show the headers
+        window.scrollTo(0, 0);
     }
 
     highlightText(text, query) {
         const regex = new RegExp(`(${query})`, 'gi');
         return text.replace(regex, '<mark class="bg-yellow-200">$1</mark>');
+    }
+
+    // Force display without checking continuous scrolling mode
+    forceDisplayChapter(chapter) {
+        const verses = bibleLoader.getChapterVerses(chapter);
+        if (!verses) return;
+        
+        // Use the ViewManager to render verses according to the selected view mode
+        const html = viewManager.renderVerses(verses);
+        this.verseContent.innerHTML = html;
+        
+        // Scroll to top to show the headers
+        window.scrollTo(0, 0);
     }
 }
 

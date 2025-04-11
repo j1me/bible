@@ -1,5 +1,6 @@
 import { bibleLoader } from './bookLoader.js';
 import { searchHandler } from './search.js';
+import { viewManager } from './viewManager.js';
 import env from '../env.js';
 
 class ChapterNavigator {
@@ -114,11 +115,15 @@ class ChapterNavigator {
         this.bookChapterButtons.classList.add('hidden');
     }
     
-    setCurrentChapter(chapter) {
+    setCurrentChapter(chapter, animate = true) {
         this.currentChapter = parseInt(chapter);
         this.updateVisibleRange();
         this.updateStripView();
-        this.scrollStripToCurrentChapter();
+        
+        // Only scroll if animation is enabled (default)
+        if (animate) {
+            this.scrollStripToCurrentChapter();
+        }
     }
     
     updateVisibleRange() {
@@ -296,6 +301,21 @@ class ChapterNavigator {
         // Close the book selection screen to navigate directly to the chapter
         this.app.bookSelectionScreen.classList.add('hidden');
     }
+    
+    markChapterAsPreloaded(chapter) {
+        // This is a subtle UI indication that a chapter is preloaded
+        // Find the button in the chapter strip
+        const chapterBtn = document.querySelector(`#chapterStrip button[data-chapter="${chapter}"]`);
+        if (chapterBtn) {
+            // Add a subtle indicator class that doesn't change the UI too much
+            chapterBtn.classList.add('preloaded');
+            
+            // Remove the class after a while to avoid cluttering the UI
+            setTimeout(() => {
+                chapterBtn.classList.remove('preloaded');
+            }, 2000);
+        }
+    }
 }
 
 class BibleApp {
@@ -311,7 +331,6 @@ class BibleApp {
         this.bookChapterText = document.getElementById('bookChapterText');
         this.bookSelectionScreen = document.getElementById('bookSelectionScreen');
         this.closeBookSelection = document.getElementById('closeBookSelection');
-        this.backButton = document.getElementById('backButton');
         this.searchToggle = document.getElementById('searchToggle');
         this.mobileSearch = document.getElementById('mobileSearch');
         this.mobileSearchInput = document.getElementById('mobileSearchInput');
@@ -345,14 +364,105 @@ class BibleApp {
         this.setupMobileUI();
         await this.registerServiceWorker();
         this.setupInstallPrompt();
+        
+        // Listen for chapter navigation events from swipe gestures
+        document.addEventListener('navigateToChapter', (e) => {
+            if (e.detail && e.detail.chapter) {
+                this.navigateToChapter(e.detail.chapter);
+            }
+        });
+        
+        // Listen for book navigation events from continuous scrolling
+        document.addEventListener('navigateToBook', (e) => {
+            if (e.detail && e.detail.book) {
+                this.currentBook = e.detail.book;
+                this.currentChapter = e.detail.chapter || 1;
+                
+                // Update UI to reflect the current book/chapter
+                this.updateBookChapterDisplay();
+                
+                // Find the corresponding book button and update UI state
+                if (this.mobileBookGrid) {
+                    const bookButton = this.mobileBookGrid.querySelector(`button[data-book="${this.currentBook}"]`);
+                    if (bookButton && this.currentBookButton !== bookButton) {
+                        // Update active states
+                        if (this.currentBookButton) {
+                            this.currentBookButton.classList.remove('bg-blue-100');
+                        }
+                        bookButton.classList.add('bg-blue-100');
+                        this.currentBookButton = bookButton;
+                    }
+                }
+                
+                // Update chapter navigator (if needed)
+                if (this.chapterNavigator) {
+                    // Update chapter count for the new book
+                    const chapterCount = bibleLoader.getChapterCount();
+                    this.chapterNavigator.setChapterCount(chapterCount);
+                    
+                    // Set the current chapter
+                    this.chapterNavigator.setCurrentChapter(this.currentChapter);
+                }
+            }
+        });
+        
+        // Listen for UI position updates during continuous scrolling
+        document.addEventListener('updateCurrentPosition', (e) => {
+            if (!e.detail) return;
+            
+            // Handle different update types
+            const updateType = e.detail.updateType;
+            
+            if (updateType === 'book' && e.detail.book) {
+                // Update both book and chapter
+                const prevBook = this.currentBook;
+                this.currentBook = e.detail.book;
+                this.currentChapter = e.detail.chapter;
+                
+                // Update UI text display
+                this.updateBookChapterDisplay();
+                
+                // Update chapter navigator position gently (no animation)
+                if (this.chapterNavigator) {
+                    this.chapterNavigator.setCurrentChapter(this.currentChapter, false);
+                }
+                
+            } else if (updateType === 'chapter' && e.detail.chapter) {
+                // Just update the chapter
+                this.currentChapter = e.detail.chapter;
+                
+                // Update UI text display
+                this.updateBookChapterDisplay();
+                
+                // Update chapter navigator position gently (no animation)
+                if (this.chapterNavigator) {
+                    this.chapterNavigator.setCurrentChapter(this.currentChapter, false);
+                }
+            }
+        });
+        
+        // Listen for preloaded chapter events (when continuous scrolling)
+        document.addEventListener('chapterPreloaded', (e) => {
+            // This event is only for updating UI indicators, not for changing the current view
+            if (e.detail && e.detail.chapter && this.chapterNavigator) {
+                // Quietly update the strip indicator to show loading progress
+                this.chapterNavigator.markChapterAsPreloaded(e.detail.chapter);
+            }
+        });
+        
+        // Listen for preloaded book events (when continuous scrolling)
+        document.addEventListener('bookPreloaded', (e) => {
+            // This event is only for updating UI indicators, not for changing the current view
+            if (e.detail && e.detail.book) {
+                // Could add some UI indication that next book is preloaded
+                console.log(`Preloaded book ${e.detail.book} chapter ${e.detail.chapter}`);
+            }
+        });
 
         // Handle window resize
         window.addEventListener('resize', () => {
             this.isMobile = window.innerWidth < 768;
         });
-
-        // Hide back button initially
-        this.backButton.style.visibility = 'hidden';
         
         // Hide current book section initially
         this.currentBookSection.style.display = 'none';
@@ -375,6 +485,12 @@ class BibleApp {
     setupMobileUI() {
         // Setup book selector
         this.currentBookChapterBtn.addEventListener('click', () => {
+            // Hide the view layout menu if it's open
+            const viewLayoutMenu = document.getElementById('viewLayoutMenu');
+            if (!viewLayoutMenu.classList.contains('hidden')) {
+                viewLayoutMenu.classList.add('hidden');
+            }
+            
             // Show the book selection screen
             this.bookSelectionScreen.classList.remove('hidden');
             
@@ -414,9 +530,26 @@ class BibleApp {
 
         // Setup search toggle
         this.searchToggle.addEventListener('click', () => {
-            this.mobileSearch.classList.toggle('hidden');
-            if (!this.mobileSearch.classList.contains('hidden')) {
-                this.mobileSearchInput.focus();
+            // Hide the view layout menu if it's open
+            const viewLayoutMenu = document.getElementById('viewLayoutMenu');
+            if (!viewLayoutMenu.classList.contains('hidden')) {
+                viewLayoutMenu.classList.add('hidden');
+            }
+            
+            const isSearchVisible = !this.mobileSearch.classList.contains('hidden');
+            
+            // Toggle search visibility
+            if (isSearchVisible) {
+                // Hide search
+                this.mobileSearch.classList.add('hidden');
+            } else {
+                // Show search - position it above the bottom bar
+                this.mobileSearch.classList.remove('hidden');
+                
+                // Focus the search input after a small delay to ensure UI has updated
+                setTimeout(() => {
+                    this.mobileSearchInput.focus();
+                }, 100);
             }
         });
 
@@ -444,34 +577,6 @@ class BibleApp {
 
         this.searchInput.addEventListener('input', (e) => {
             this.mobileSearchInput.value = e.target.value;
-        });
-
-        // Setup back button
-        this.backButton.addEventListener('click', () => {
-            this.bookSelectionScreen.classList.remove('hidden');
-            
-            // Show the current book's chapters
-            if (this.currentBook) {
-                this.currentBookSection.style.display = 'block';
-                this.selectionScreenTitle.textContent = 'References';
-                this.currentBookTitle.textContent = this.currentBook;
-                
-                // First, force scroll to absolute top
-                this.bookSelectionScreen.scrollTop = 0;
-                
-                // Use setTimeout to ensure the DOM has updated
-                setTimeout(() => {
-                    // Force scroll to the very top again
-                    window.scrollTo(0, 0);
-                    this.bookSelectionScreen.scrollTop = 0;
-                    
-                    // Ensure the header is at the very top
-                    const header = this.bookSelectionScreen.querySelector('.sticky');
-                    if (header) {
-                        header.scrollIntoView({ block: 'start', behavior: 'auto' });
-                    }
-                }, 50);
-            }
         });
     }
 
@@ -508,7 +613,7 @@ class BibleApp {
     updateMobileBookGrid() {
         const gridHtml = this.filteredBooks.map(book => `
             <button 
-                class="flex items-center justify-center p-4 bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow text-center min-h-[100px]"
+                class="flex items-center justify-center p-4 bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow text-center min-h-[100px] border"
                 data-book="${book}">
                 <span class="text-lg text-gray-700">${book}</span>
             </button>
@@ -531,9 +636,8 @@ class BibleApp {
         bookButton.classList.add('bg-blue-100');
         this.currentBookButton = bookButton;
         
-        // Hide the book selection screen and show back button
+        // Hide the book selection screen
         this.bookSelectionScreen.classList.add('hidden');
-        this.backButton.style.visibility = 'visible';
 
         try {
             await this.loadBook(bookName);
@@ -560,45 +664,17 @@ class BibleApp {
         });
     }
 
-    selectChapter(chapterButton) {
-        const chapter = chapterButton.dataset.chapter;
-        this.currentChapter = chapter;
-        
-        // Update the chapter navigator
-        this.chapterNavigator.setCurrentChapter(chapter);
-        
-        // Update the combined book and chapter text
-        this.updateBookChapterDisplay();
-
-        // Update active state in desktop
-        this.chapterButtons.querySelectorAll('button').forEach(btn => 
-            btn.classList.remove('bg-blue-100')
-        );
-        
-        // Update active state in book selection screen (grid mode)
-        this.bookChapterButtons.querySelectorAll('button').forEach(btn => 
-            btn.classList.remove('bg-blue-500', 'text-white')
-        );
-        
-        // Find and highlight the corresponding buttons in grid views
-        const desktopBtn = this.chapterButtons.querySelector(`button[data-chapter="${chapter}"]`);
-        const bookSelectionBtn = this.bookChapterButtons.querySelector(`button[data-chapter="${chapter}"]`);
-        
-        if (desktopBtn) desktopBtn.classList.add('bg-blue-100');
-        if (bookSelectionBtn) bookSelectionBtn.classList.add('bg-blue-500', 'text-white');
-
-        // Hide the book selection screen (to ensure direct navigation)
-        this.bookSelectionScreen.classList.add('hidden');
-
-        searchHandler.displayChapter(chapter);
-    }
-
     updateBookChapterDisplay() {
         // Only update if we have both a book and chapter
         if (this.currentBook && this.currentChapter) {
-            this.bookChapterText.textContent = `${this.currentBook} ${this.currentChapter}`;
+            // Make sure we display the string book name
+            const bookName = typeof this.currentBook === 'string' ? this.currentBook : 
+                             (this.currentBook.book ? this.currentBook.book : 'Unknown Book');
+            this.bookChapterText.textContent = `${bookName} ${this.currentChapter}`;
         } else if (this.currentBook) {
-            this.bookChapterText.textContent = this.currentBook;
+            const bookName = typeof this.currentBook === 'string' ? this.currentBook : 
+                             (this.currentBook.book ? this.currentBook.book : 'Unknown Book');
+            this.bookChapterText.textContent = bookName;
         } else {
             this.bookChapterText.textContent = 'Select a Book';
         }
@@ -686,6 +762,79 @@ class BibleApp {
             
             this.deferredPrompt = null;
         });
+    }
+
+    // Helper method to handle direct chapter navigation
+    navigateToChapter(chapter) {
+        if (!this.currentBook) return; // Can't navigate without a book selected
+        
+        // Update chapter state
+        this.currentChapter = chapter.toString();
+        
+        // Update the UI
+        this.updateBookChapterDisplay();
+        
+        // Update navigator state
+        this.chapterNavigator.setCurrentChapter(chapter);
+        
+        // When in continuous scrolling mode, we need to reset the content first
+        if (viewManager && viewManager.continuousScrolling) {
+            // Reset the verse content container
+            document.getElementById('verseContent').innerHTML = '';
+            
+            // Dispatch event to inform viewManager to reload content
+            document.dispatchEvent(new CustomEvent('resetVerseContent', {
+                detail: { chapter }
+            }));
+            return; // The event handler will take care of displaying the chapter
+        }
+        
+        // Display the verses
+        searchHandler.displayChapter(chapter);
+    }
+
+    selectChapter(chapterButton) {
+        const chapter = chapterButton.dataset.chapter;
+        this.currentChapter = chapter;
+        
+        // Update the chapter navigator
+        this.chapterNavigator.setCurrentChapter(chapter);
+        
+        // Update the combined book and chapter text
+        this.updateBookChapterDisplay();
+
+        // Update active state in desktop
+        this.chapterButtons.querySelectorAll('button').forEach(btn => 
+            btn.classList.remove('bg-blue-100')
+        );
+        
+        // Update active state in book selection screen (grid mode)
+        this.bookChapterButtons.querySelectorAll('button').forEach(btn => 
+            btn.classList.remove('bg-blue-500', 'text-white')
+        );
+        
+        // Find and highlight the corresponding buttons in grid views
+        const desktopBtn = this.chapterButtons.querySelector(`button[data-chapter="${chapter}"]`);
+        const bookSelectionBtn = this.bookChapterButtons.querySelector(`button[data-chapter="${chapter}"]`);
+        
+        if (desktopBtn) desktopBtn.classList.add('bg-blue-100');
+        if (bookSelectionBtn) bookSelectionBtn.classList.add('bg-blue-500', 'text-white');
+
+        // Hide the book selection screen (to ensure direct navigation)
+        this.bookSelectionScreen.classList.add('hidden');
+
+        // When in continuous scrolling mode, we need to reset the content first
+        if (viewManager && viewManager.continuousScrolling) {
+            // Reset the verse content container
+            document.getElementById('verseContent').innerHTML = '';
+            
+            // Dispatch event to inform viewManager to reload content
+            document.dispatchEvent(new CustomEvent('resetVerseContent', {
+                detail: { chapter }
+            }));
+        }
+
+        searchHandler.displayChapter(chapter);
     }
 }
 

@@ -10,8 +10,316 @@
     <script src="/env.js" type="module"></script>
     <script src="/js/bookLoader.js" type="module"></script>
     <script src="/js/search.js" type="module"></script>
+    <script src="/js/viewManager.js" type="module"></script>
     <script src="/js/app.js" type="module"></script>
     <style>
+        :root {
+            --font-size: 1rem;
+            --font-family: serif;
+        }
+        
+        body.themed {
+            /* Using CSS Variables for theming */
+            --bg-color: #fff;
+            --text-color: #333;
+            --muted-color: #666;
+            --primary-color: #3b82f6;
+            --border-color: #e5e7eb;
+            --card-bg: #f9fafb;
+            --menu-bg: #fff;
+            --verse-number-color: #6b7280;
+        }
+        
+        /* Define text-primary and text-secondary classes */
+        .text-primary {
+            color: var(--text-color);
+        }
+        
+        .text-secondary {
+            color: var(--muted-color);
+        }
+        
+        /* Preloaded chapter indicator */
+        #chapterStrip button.preloaded {
+            position: relative;
+        }
+        
+        #chapterStrip button.preloaded::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: var(--primary-color);
+            opacity: 0.7;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: translateX(-50%) scale(0.8); opacity: 0.7; }
+            50% { transform: translateX(-50%) scale(1.2); opacity: 0.9; }
+            100% { transform: translateX(-50%) scale(0.8); opacity: 0.7; }
+        }
+        
+        /* Light Theme (Default) */
+        .theme-light {
+            --bg-color: #f9fafb;
+            --text-color: #111827;
+            --muted-color: #666;
+            --card-bg: #ffffff;
+            --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --bottombar-bg: white;
+            --bottombar-text: #111827;
+            --menu-bg: white; 
+            --menu-text: #111827;
+            --highlight-color: #3b82f6; /* blue-500 */
+            --border-color: #e5e7eb;
+            --primary-color: #3b82f6;
+            --verse-number-color: #6b7280;
+        }
+        
+        /* Sepia Theme */
+        .theme-sepia {
+            --bg-color: #f7f1e3;
+            --text-color: #52443b;
+            --muted-color: #7d6e64;
+            --card-bg: #fdf8ed;
+            --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+            --bottombar-bg: #fdf8ed;
+            --bottombar-text: #52443b;
+            --menu-bg: #fdf8ed;
+            --menu-text: #52443b;
+            --highlight-color: #e2ba7c;
+            --border-color: #e7ddcc;
+            --primary-color: #c8a260;
+            --verse-number-color: #a39384;
+        }
+        
+        /* Dark Theme */
+        .theme-dark {
+            --bg-color: #1e293b;
+            --text-color: #e2e8f0;
+            --muted-color: #94a3b8;
+            --card-bg: #334155;
+            --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            --bottombar-bg: #1e293b;
+            --bottombar-text: #e2e8f0;
+            --menu-bg: #1e293b;
+            --menu-text: #e2e8f0;
+            --highlight-color: #3b82f6;
+            --border-color: #475569;
+            --primary-color: #60a5fa;
+            --verse-number-color: #94a3b8;
+        }
+        
+        /* Black Theme */
+        .theme-black {
+            --bg-color: #000000;
+            --text-color: #f8fafc;
+            --muted-color: #94a3b8;
+            --card-bg: #0f172a;
+            --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+            --bottombar-bg: #000000;
+            --bottombar-text: #f8fafc;
+            --menu-bg: #000000;
+            --menu-text: #f8fafc;
+            --highlight-color: #2563eb;
+            --border-color: #1e293b;
+            --primary-color: #3b82f6;
+            --verse-number-color: #64748b;
+        }
+        
+        /* Tan Theme */
+        .theme-tan {
+            --bg-color: #f6f1ea;
+            --text-color: #5f574f;
+            --muted-color: #8a8076;
+            --card-bg: #faf6f1;
+            --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+            --bottombar-bg: #faf6f1;
+            --bottombar-text: #5f574f;
+            --menu-bg: #faf6f1;
+            --menu-text: #5f574f;
+            --highlight-color: #ceb195;
+            --border-color: #e6ddd3;
+            --primary-color: #b89676;
+            --verse-number-color: #9d9389;
+        }
+        
+        /* Gray Theme */
+        .theme-gray {
+            --bg-color: #f2f2f2;
+            --text-color: #444444;
+            --muted-color: #777777;
+            --card-bg: #ffffff;
+            --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --bottombar-bg: #ffffff;
+            --bottombar-text: #444444;
+            --menu-bg: #ffffff;
+            --menu-text: #444444;
+            --highlight-color: #888888;
+            --border-color: #dddddd;
+            --primary-color: #888888;
+            --verse-number-color: #888888;
+        }
+        
+        body.themed {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        /* Apply theme to bottom bar and settings menus */
+        .themed .bottom-bar {
+            background-color: var(--bottombar-bg);
+            color: var(--bottombar-text);
+        }
+        
+        .themed #bookChapterText {
+            color: var(--bottombar-text);
+        }
+        
+        .themed #viewLayoutMenu,
+        .themed #textSettingsPanel,
+        .themed #themeSettingsPanel,
+        .themed #mobileSearch,
+        .themed #bookSelectionScreen,
+        .themed #chapterExpandModal .bg-white {
+            background-color: var(--menu-bg);
+            color: var(--menu-text);
+        }
+        
+        .themed #viewLayoutMenu button,
+        .themed #textSettingsPanel button,
+        .themed #themeSettingsPanel button {
+            color: var(--menu-text);
+        }
+        
+        .themed .verse-card {
+            background-color: var(--card-bg);
+            box-shadow: var(--card-shadow);
+        }
+        
+        .themed #viewLayoutMenu .border,
+        .themed #textSettingsPanel .border,
+        .themed #themeSettingsPanel .border,
+        .themed .border-b {
+            border-color: var(--border-color);
+        }
+        
+        .themed .text-gray-700, 
+        .themed .text-gray-800,
+        .themed .text-gray-900 {
+            color: var(--menu-text);
+        }
+        
+        .themed .text-gray-500,
+        .themed .text-gray-600 {
+            color: var(--muted-text);
+        }
+        
+        .themed .bg-blue-500,
+        .themed .bg-white[data-theme] {
+            background-color: var(--highlight-color);
+            color: var(--highlight-text);
+        }
+        
+        .themed #mainSettingsPanel .bg-white:not(.bg-blue-500) {
+            background-color: var(--card-bg);
+        }
+        
+        .themed #fontSelector button.bg-white {
+            background-color: var(--card-bg);
+        }
+        
+        .themed .pointer {
+            background-color: var(--menu-bg);
+        }
+        
+        .themed .hover\:bg-gray-100:hover {
+            background-color: var(--border-color);
+        }
+        
+        .themed .active\:bg-gray-100:active {
+            background-color: var(--border-color);
+        }
+        
+        .themed #bookSelectionScreen .bg-gray-50,
+        .themed #currentBookSection,
+        .themed .bg-gray-50 {
+            background-color: var(--card-bg);
+        }
+        
+        .themed .bg-white {
+            background-color: var(--menu-bg);
+        }
+        
+        /* Ensure book grid items have visible borders in all themes */
+        #mobileBookGrid button {
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+        }
+        
+        .theme-dark #mobileBookGrid button,
+        .theme-black #mobileBookGrid button {
+            border-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        
+        /* Make sure the book text always matches theme text color */
+        .themed #mobileBookGrid button span {
+            color: var(--text-color);
+        }
+        
+        .themed input,
+        .themed .border {
+            border-color: var(--border-color);
+            background-color: var(--card-bg);
+            color: var(--text-color);
+        }
+        
+        .themed input::placeholder {
+            color: var(--muted-text);
+        }
+        
+        .themed #searchInput,
+        .themed #mobileSearchInput,
+        .themed #bookSearchInput {
+            background-color: var(--card-bg);
+            color: var(--text-color);
+        }
+        
+        .themed input:focus {
+            border-color: var(--highlight-color);
+            box-shadow: 0 0 0 2px var(--highlight-color);
+        }
+        
+        .themed .focus\:ring-2:focus,
+        .themed .focus\:ring-blue-500:focus {
+            --tw-ring-color: var(--highlight-color);
+        }
+        
+        /* Override SVG stroke color in dark themes */
+        .theme-dark svg, .theme-black svg {
+            stroke: currentColor;
+        }
+        
+        .verse-content {
+            font-size: var(--font-size) !important;
+            font-family: var(--font-family), system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        /* Additional specific rule for verse content font size */
+        .verse-content[style*="font-size"] {
+            font-size: attr(style font-size) !important;
+        }
+        
+        /* Force font size for all generated content */
+        #verseContent span, #verseContent div, #verseContent p {
+            font-size: inherit;
+        }
+        
         /* Custom scrollbar for chapter strip */
         .chapter-strip {
             -ms-overflow-style: none;  /* IE and Edge */
@@ -36,35 +344,369 @@
             transform: translateY(100%);
             transition: transform 300ms ease-in;
         }
+        
+        /* Theme preview styles */
+        .theme-preview {
+            border: 2px solid transparent;
+        }
+        
+        .theme-preview[data-theme="light"] {
+            background-color: white;
+        }
+        
+        .theme-preview[data-theme="light"] div {
+            background-color: #111827;
+        }
+        
+        .theme-preview[data-theme="sepia"] {
+            background-color: #fcf8f3;
+        }
+        
+        .theme-preview[data-theme="sepia"] div {
+            background-color: #78350f;
+        }
+        
+        .theme-preview[data-theme="dark"] {
+            background-color: #1f2937;
+        }
+        
+        .theme-preview[data-theme="dark"] div {
+            background-color: #f3f4f6;
+        }
+        
+        .theme-preview[data-theme="black"] {
+            background-color: black;
+        }
+        
+        .theme-preview[data-theme="black"] div {
+            background-color: #e5e7eb;
+        }
+        
+        .theme-preview[data-theme="tan"] {
+            background-color: #fef3c7;
+        }
+        
+        .theme-preview[data-theme="tan"] div {
+            background-color: #78350f;
+        }
+        
+        .theme-preview[data-theme="gray"] {
+            background-color: #e5e7eb;
+        }
+        
+        .theme-preview[data-theme="gray"] div {
+            background-color: #1f2937;
+        }
+        
+        /* Active theme in theme selector */
+        .theme-preview.active,
+        .themed [data-theme].active {
+            border-color: var(--highlight-color) !important;
+        }
+        
+        /* Theme selector preview boxes should maintain their actual colors */
+        .themed [data-theme="light"] {
+            background-color: white !important;
+            border-color: var(--highlight-color);
+        }
+        
+        .themed [data-theme="light"] div {
+            background-color: #111827 !important;
+        }
+        
+        .themed [data-theme="sepia"] {
+            background-color: #fffbf5 !important;
+        }
+        
+        .themed [data-theme="sepia"] div {
+            background-color: #78350f !important;
+        }
+        
+        .themed [data-theme="dark"] {
+            background-color: #1f2937 !important;
+        }
+        
+        .themed [data-theme="dark"] div {
+            background-color: #f3f4f6 !important;
+        }
+        
+        .themed [data-theme="black"] {
+            background-color: black !important;
+        }
+        
+        .themed [data-theme="black"] div {
+            background-color: #e5e7eb !important;
+        }
+        
+        .themed [data-theme="tan"] {
+            background-color: #fef3c7 !important;
+        }
+        
+        .themed [data-theme="tan"] div {
+            background-color: #78350f !important;
+        }
+        
+        .themed [data-theme="gray"] {
+            background-color: #e5e7eb !important;
+        }
+        
+        .themed [data-theme="gray"] div {
+            background-color: #1f2937 !important;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-900">
     <div class="min-h-screen flex flex-col">
-        <!-- Mobile Header -->
-        <div class="md:hidden fixed top-0 left-0 right-0 z-40 bg-white shadow-md">
-            <div class="flex items-center justify-between p-4">
-                <button id="backButton" class="p-2 text-gray-600 hover:text-gray-900">
+        <!-- Desktop Sidebar -->
+        <aside id="bookList" class="hidden md:block md:w-64 bg-white p-4 shadow-lg fixed h-full overflow-y-auto">
+            <h1 class="text-2xl font-bold mb-4">Bible PWA</h1>
+            <div class="flex items-center mb-4">
+                <input type="text" id="searchInput" placeholder="Search verses..." 
+                    class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+            </div>
+            <nav id="bookNav" class="space-y-2">
+                <!-- Books will be loaded here -->
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 md:ml-64 p-4 pb-28 md:pb-4 mt-0">
+            <div id="installBanner" class="hidden mb-4 p-4 bg-blue-100 rounded-lg">
+                <button id="installButton" class="text-blue-700 font-semibold">
+                    📲 Install App
+                </button>
+            </div>
+            
+            <!-- Desktop Chapter Selection -->
+            <div id="chapterButtons" class="md:block hidden mb-6 flex flex-wrap gap-2">
+                <!-- Chapter buttons will be loaded here -->
+            </div>
+
+            <!-- Verse Display -->
+            <div id="verseContent" class="prose prose-lg max-w-none mb-16">
+                <!-- Verses will be loaded here -->
+            </div>
+        </main>
+        
+        <!-- Mobile Bottom Bar (floating) -->
+        <div class="md:hidden fixed bottom-4 left-4 right-4 z-40 bg-white shadow-lg rounded-full bottom-bar">
+            <div class="flex items-center justify-between px-6 py-3">
+                <button id="viewSettingsToggle" class="p-2 text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-100">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                 </button>
-                <button id="currentBookChapterBtn" class="flex items-center gap-1 text-xl font-semibold px-3 py-1 rounded-lg active:bg-gray-100">
+                <button id="currentBookChapterBtn" class="flex items-center gap-1 text-xl font-semibold px-4 py-1 rounded-full active:bg-gray-100">
                     <span id="bookChapterText">Select a Book</span>
                     <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </button>
-                <button id="searchToggle" class="p-2 text-gray-600 hover:text-gray-900">
+                <button id="searchToggle" class="p-2 text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-100">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                     </svg>
                 </button>
             </div>
-            <!-- Mobile Search Bar -->
-            <div id="mobileSearch" class="hidden px-4 pb-4">
+        </div>
+        
+        <!-- Mobile Search (floating above bottom bar) -->
+        <div id="mobileSearch" class="md:hidden fixed bottom-20 left-4 right-4 z-40 bg-white shadow-lg rounded-xl hidden">
+            <div class="px-4 py-4">
                 <input type="text" id="mobileSearchInput" placeholder="Search verses..." 
                     class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
             </div>
+            <!-- Pointer to search button -->
+            <div class="absolute h-4 w-4 transform rotate-45 bg-white -bottom-1 right-10 mr-1 pointer"></div>
+        </div>
+        
+        <!-- View Layout Menu (floating above bottom bar) -->
+        <div id="viewLayoutMenu" class="md:hidden fixed bottom-20 left-4 right-4 z-40 bg-white shadow-lg rounded-xl hidden">
+            <!-- Settings Header -->
+            <div class="border-b">
+                <div class="flex items-center justify-between p-3">
+                    <h3 class="font-medium text-gray-800">Settings</h3>
+                    <button id="closeSettings" class="p-1 text-gray-600 rounded-full hover:bg-gray-100">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Main Settings Panel -->
+            <div id="mainSettingsPanel" class="p-4">
+                <!-- View Mode Options -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">View Mode</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button id="boxedViewBtn" class="flex flex-col items-center justify-center p-2 rounded-lg bg-blue-500 text-white">
+                            <svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                            </svg>
+                            <span class="text-xs">Box</span>
+                        </button>
+                        <button id="plainViewBtn" class="flex flex-col items-center justify-center p-2 rounded-lg bg-white text-gray-600">
+                            <svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                            </svg>
+                            <span class="text-xs">Plain</span>
+                        </button>
+                        <button id="continuousViewBtn" class="flex flex-col items-center justify-center p-2 rounded-lg bg-white text-gray-600">
+                            <svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                            <span class="text-xs">Book</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Text Settings Button -->
+                <div class="mb-3">
+                    <button id="textSettingsBtn" class="w-full flex items-center justify-between p-3 border rounded-lg text-left hover:bg-gray-50">
+                        <div class="flex items-center">
+                            <svg class="w-5 h-5 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+                            </svg>
+                            <span>Text Settings</span>
+                        </div>
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Theme Settings Button -->
+                <div class="mb-3">
+                    <button id="themeSettingsBtn" class="w-full flex items-center justify-between p-3 border rounded-lg text-left hover:bg-gray-50">
+                        <div class="flex items-center">
+                            <svg class="w-5 h-5 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                            </svg>
+                            <span>Theme</span>
+                        </div>
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Continuous Scrolling Option -->
+                <div class="flex justify-between items-center mt-4">
+                    <label class="text-sm font-medium text-gray-700">Continuous Scrolling</label>
+                    <div class="relative inline-block w-12 h-6 transition duration-200 ease-in-out rounded-full">
+                        <input type="checkbox" id="scrollToggle" class="absolute w-6 h-6 rounded-full bg-white appearance-none cursor-pointer focus:outline-none peer checked:right-0 right-6 border-2 border-gray-300 checked:border-blue-500 z-10 transition-all">
+                        <label for="scrollToggle" class="block w-full h-full bg-gray-300 rounded-full peer-checked:bg-blue-400"></label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Text Settings Panel (initially hidden) -->
+            <div id="textSettingsPanel" class="absolute inset-0 bg-white z-10 transform translate-x-full transition-transform duration-300 ease-in-out">
+                <div class="border-b">
+                    <div class="flex items-center p-3">
+                        <button id="backToMainSettings" class="p-1 mr-2 text-gray-600 rounded-full hover:bg-gray-100">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <h3 class="font-medium text-gray-800">Text Settings</h3>
+                    </div>
+                </div>
+                
+                <div class="p-4">
+                    <!-- Font Size -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Font Size</label>
+                        <div class="grid grid-cols-4 gap-2">
+                            <button data-size="0.9" class="py-2 px-3 border rounded-lg text-center">
+                                <span style="font-size: 0.9rem">Small</span>
+                            </button>
+                            <button data-size="1.0" class="py-2 px-3 border rounded-lg text-center">
+                                <span style="font-size: 1.0rem">Medium</span>
+                            </button>
+                            <button data-size="1.2" class="py-2 px-3 border rounded-lg text-center">
+                                <span style="font-size: 1.2rem">Large</span>
+                            </button>
+                            <button data-size="1.4" class="py-2 px-3 border rounded-lg text-center">
+                                <span style="font-size: 1.4rem">XL</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Font Family -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Font</label>
+                        <div id="fontSelector" class="grid grid-cols-2 gap-2">
+                            <button data-font="serif" class="py-3 px-4 border rounded-lg bg-blue-500 text-white text-center">
+                                <span class="font-serif">Serif</span>
+                            </button>
+                            <button data-font="sans" class="py-3 px-4 border rounded-lg bg-white text-gray-700 text-center">
+                                <span class="font-sans">Sans-serif</span>
+                            </button>
+                            <button data-font="mono" class="py-3 px-4 border rounded-lg bg-white text-gray-700 text-center">
+                                <span class="font-mono">Monospace</span>
+                            </button>
+                            <button data-font="custom" class="py-3 px-4 border rounded-lg bg-white text-gray-700 text-center">
+                                <span style="font-family: Georgia;">Georgia</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Theme Settings Panel (initially hidden) -->
+            <div id="themeSettingsPanel" class="absolute inset-0 bg-white z-10 transform translate-x-full transition-transform duration-300 ease-in-out">
+                <div class="border-b">
+                    <div class="flex items-center p-3">
+                        <button id="backToMainFromTheme" class="p-1 mr-2 text-gray-600 rounded-full hover:bg-gray-100">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <h3 class="font-medium text-gray-800">Theme</h3>
+                    </div>
+                </div>
+                
+                <div class="p-4">
+                    <div class="grid grid-cols-3 gap-4">
+                        <button data-theme="light" class="theme-preview aspect-square flex flex-col items-center justify-center rounded-lg p-3">
+                            <div class="w-full h-3 rounded mb-1"></div>
+                            <div class="w-full h-2 rounded-sm mb-1"></div>
+                            <div class="w-3/4 h-2 rounded-sm"></div>
+                        </button>
+                        <button data-theme="sepia" class="theme-preview aspect-square flex flex-col items-center justify-center rounded-lg p-3">
+                            <div class="w-full h-3 rounded mb-1"></div>
+                            <div class="w-full h-2 rounded-sm mb-1"></div>
+                            <div class="w-3/4 h-2 rounded-sm"></div>
+                        </button>
+                        <button data-theme="dark" class="theme-preview aspect-square flex flex-col items-center justify-center rounded-lg p-3">
+                            <div class="w-full h-3 rounded mb-1"></div>
+                            <div class="w-full h-2 rounded-sm mb-1"></div>
+                            <div class="w-3/4 h-2 rounded-sm"></div>
+                        </button>
+                        <button data-theme="black" class="theme-preview aspect-square flex flex-col items-center justify-center rounded-lg p-3">
+                            <div class="w-full h-3 rounded mb-1"></div>
+                            <div class="w-full h-2 rounded-sm mb-1"></div>
+                            <div class="w-3/4 h-2 rounded-sm"></div>
+                        </button>
+                        <button data-theme="tan" class="theme-preview aspect-square flex flex-col items-center justify-center rounded-lg p-3">
+                            <div class="w-full h-3 rounded mb-1"></div>
+                            <div class="w-full h-2 rounded-sm mb-1"></div>
+                            <div class="w-3/4 h-2 rounded-sm"></div>
+                        </button>
+                        <button data-theme="gray" class="theme-preview aspect-square flex flex-col items-center justify-center rounded-lg p-3">
+                            <div class="w-full h-3 rounded mb-1"></div>
+                            <div class="w-full h-2 rounded-sm mb-1"></div>
+                            <div class="w-3/4 h-2 rounded-sm"></div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Pointer to settings button -->
+            <div class="absolute h-4 w-4 transform rotate-45 bg-white -bottom-1 left-10 ml-1 pointer"></div>
         </div>
 
         <!-- Mobile Book Selection Screen -->
@@ -107,8 +749,6 @@
                             <div id="chapterStrip" class="flex gap-2 overflow-x-auto snap-x chapter-strip py-2 px-1 scroll-smooth">
                                 <!-- Focused chapter buttons will be loaded here -->
                             </div>
-                            <div class="absolute inset-y-0 left-0 bg-gradient-to-r from-gray-50 to-transparent w-6 pointer-events-none"></div>
-                            <div class="absolute inset-y-0 right-0 bg-gradient-to-l from-gray-50 to-transparent w-6 pointer-events-none"></div>
                         </div>
                         <!-- View all chapters button -->
                         <div class="mt-2 flex justify-center">
@@ -159,37 +799,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Desktop Sidebar -->
-        <aside id="bookList" class="hidden md:block md:w-64 bg-white p-4 shadow-lg fixed h-full overflow-y-auto">
-            <h1 class="text-2xl font-bold mb-4">Bible PWA</h1>
-            <div class="flex items-center mb-4">
-                <input type="text" id="searchInput" placeholder="Search verses..." 
-                    class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-            </div>
-            <nav id="bookNav" class="space-y-2">
-                <!-- Books will be loaded here -->
-            </nav>
-        </aside>
-
-        <!-- Main Content Area -->
-        <main class="flex-1 md:ml-64 p-4 mt-20 md:mt-0">
-            <div id="installBanner" class="hidden mb-4 p-4 bg-blue-100 rounded-lg">
-                <button id="installButton" class="text-blue-700 font-semibold">
-                    📲 Install App
-                </button>
-            </div>
-            
-            <!-- Desktop Chapter Selection -->
-            <div id="chapterButtons" class="md:block hidden mb-6 flex flex-wrap gap-2">
-                <!-- Chapter buttons will be loaded here -->
-            </div>
-
-            <!-- Verse Display -->
-            <div id="verseContent" class="prose prose-lg max-w-none">
-                <!-- Verses will be loaded here -->
-            </div>
-        </main>
     </div>
 </body>
 </html> 
