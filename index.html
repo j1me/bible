@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bible PWA</title>
+    <meta name="description" content="A mobile-first Bible reader progressive web app">
+    <link rel="manifest" href="/manifest.json">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/env.js" type="module"></script>
+    <script src="/js/bookLoader.js" type="module"></script>
+    <script src="/js/search.js" type="module"></script>
+    <script src="/js/app.js" type="module"></script>
+    <style>
+        /* Custom scrollbar for chapter strip */
+        .chapter-strip {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        .chapter-strip::-webkit-scrollbar {
+            display: none;  /* Chrome, Safari and Opera */
+        }
+        
+        /* Smooth slide transitions */
+        .slide-up-enter {
+            transform: translateY(100%);
+        }
+        .slide-up-enter-active {
+            transform: translateY(0%);
+            transition: transform 300ms ease-out;
+        }
+        .slide-up-exit {
+            transform: translateY(0%);
+        }
+        .slide-up-exit-active {
+            transform: translateY(100%);
+            transition: transform 300ms ease-in;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-900">
+    <div class="min-h-screen flex flex-col">
+        <!-- Mobile Header -->
+        <div class="md:hidden fixed top-0 left-0 right-0 z-40 bg-white shadow-md">
+            <div class="flex items-center justify-between p-4">
+                <button id="backButton" class="p-2 text-gray-600 hover:text-gray-900">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </button>
+                <button id="currentBookChapterBtn" class="flex items-center gap-1 text-xl font-semibold px-3 py-1 rounded-lg active:bg-gray-100">
+                    <span id="bookChapterText">Select a Book</span>
+                    <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+                <button id="searchToggle" class="p-2 text-gray-600 hover:text-gray-900">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </button>
+            </div>
+            <!-- Mobile Search Bar -->
+            <div id="mobileSearch" class="hidden px-4 pb-4">
+                <input type="text" id="mobileSearchInput" placeholder="Search verses..." 
+                    class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+            </div>
+        </div>
+
+        <!-- Mobile Book Selection Screen -->
+        <div id="bookSelectionScreen" class="md:hidden fixed inset-0 bg-white z-50 hidden overflow-y-auto">
+            <div class="flex flex-col min-h-full">
+                <!-- Book Selection Header -->
+                <div class="sticky top-0 bg-white z-10">
+                    <div class="flex items-center justify-between p-4 border-b">
+                        <button id="closeBookSelection" class="p-2 text-gray-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                            </svg>
+                        </button>
+                        <h2 class="text-lg font-semibold" id="selectionScreenTitle">Select a Book</h2>
+                        <div class="w-10"></div><!-- Spacer for centering -->
+                    </div>
+
+                    <!-- Book Search -->
+                    <div class="p-4 border-b">
+                        <input type="text" id="bookSearchInput" placeholder="Search books..." 
+                            class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <!-- Current Book Chapter Selection -->
+                <div id="currentBookSection" class="px-4 py-6 bg-gray-50 border-b">
+                    <h3 class="text-lg font-semibold mb-3" id="currentBookTitle">Genesis</h3>
+                    
+                    <!-- Chapter Navigator - Focused Strip View -->
+                    <div id="chapterStripContainer" class="mb-1">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-500 hidden">Chapters</span>
+                            <button id="viewAllChaptersBtn" class="text-blue-600 p-1 rounded-full hover:bg-blue-50 transition-colors flex items-center justify-center hidden">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="relative">
+                            <div id="chapterStrip" class="flex gap-2 overflow-x-auto snap-x chapter-strip py-2 px-1 scroll-smooth">
+                                <!-- Focused chapter buttons will be loaded here -->
+                            </div>
+                            <div class="absolute inset-y-0 left-0 bg-gradient-to-r from-gray-50 to-transparent w-6 pointer-events-none"></div>
+                            <div class="absolute inset-y-0 right-0 bg-gradient-to-l from-gray-50 to-transparent w-6 pointer-events-none"></div>
+                        </div>
+                        <!-- View all chapters button -->
+                        <div class="mt-2 flex justify-center">
+                            <button id="viewFullChaptersBtn" class="text-sm flex items-center gap-1 text-blue-600 py-1 px-2 rounded-md hover:bg-blue-50">
+                                <span>View all chapters</span>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Regular Grid View for Chapter Selection -->
+                    <div id="bookChapterButtons" class="grid grid-cols-5 gap-3 hidden">
+                        <!-- Chapter buttons will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Book Grid Section Header -->
+                <div class="px-4 pt-6 pb-2">
+                    <h3 class="text-lg font-semibold text-gray-600">All Books</h3>
+                </div>
+
+                <!-- Book Grid -->
+                <div class="flex-1 p-4 pt-2">
+                    <div id="mobileBookGrid" class="grid grid-cols-2 gap-4">
+                        <!-- Books will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chapter Expansion Modal -->
+        <div id="chapterExpandModal" class="md:hidden fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex flex-col">
+            <div class="bg-white w-full h-full transform translate-y-full transition-transform duration-300" id="chapterExpandContent">
+                <div class="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10">
+                    <h3 class="text-lg font-semibold" id="expandModalBookTitle">Genesis</h3>
+                    <button id="closeExpandModal" class="p-2 text-gray-600 rounded-full hover:bg-gray-100">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4 overflow-y-auto h-[calc(100%-70px)]">
+                    <div id="expandedChapterGrid" class="grid grid-cols-5 gap-4 py-2">
+                        <!-- All chapter buttons will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Desktop Sidebar -->
+        <aside id="bookList" class="hidden md:block md:w-64 bg-white p-4 shadow-lg fixed h-full overflow-y-auto">
+            <h1 class="text-2xl font-bold mb-4">Bible PWA</h1>
+            <div class="flex items-center mb-4">
+                <input type="text" id="searchInput" placeholder="Search verses..." 
+                    class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+            </div>
+            <nav id="bookNav" class="space-y-2">
+                <!-- Books will be loaded here -->
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 md:ml-64 p-4 mt-20 md:mt-0">
+            <div id="installBanner" class="hidden mb-4 p-4 bg-blue-100 rounded-lg">
+                <button id="installButton" class="text-blue-700 font-semibold">
+                    📲 Install App
+                </button>
+            </div>
+            
+            <!-- Desktop Chapter Selection -->
+            <div id="chapterButtons" class="md:block hidden mb-6 flex flex-wrap gap-2">
+                <!-- Chapter buttons will be loaded here -->
+            </div>
+
+            <!-- Verse Display -->
+            <div id="verseContent" class="prose prose-lg max-w-none">
+                <!-- Verses will be loaded here -->
+            </div>
+        </main>
+    </div>
+</body>
+</html> 

@@ -1,0 +1,10 @@
+{
+  "name": "bible-pwa",
+  "version": "1.0.0",
+  "description": "A mobile-first Bible reader progressive web app",
+  "scripts": {
+    "start": "npx http-server . -p 8080 -c-1"
+  },
+  "author": "",
+  "license": "MIT"
+} 
